@@ -44,11 +44,15 @@ in the shell code might change the series of 31 31 31 31 31 31 31 31 to address 
 first 4 bytes changes ebp
 last 4 bytes changes eip
 
+have to write the addresses backwards so 0xffffd054 becomes 54 d0 ff ff
+
+it seems like the beginning bytes before the sequence of 8 bytes of "31" might not do stuff
+and maybe also the group of "90" bytes after either
 
 ----------------------------------------
 
 Part 2: Return to libc
 
 (gdb) display &system
-&system = (<text variable, no debug info> *) 0xf7e2cda0 <system>
+    &system = (<text variable, no debug info> *) 0xf7e2cda0 <system>
 
