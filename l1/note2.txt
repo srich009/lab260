@@ -1,0 +1,54 @@
+----------------------------------------
+
+Part 2: Return to libc
+
+Objective:
+Construct an exploit input that takes advantage of the existing “system” library call in libc to achieve the same goal as in the first task.
+That is, we want to run “ps” command, without injecting any code into the stack of the vulnerable program.
+Instead of jumping to the shell code from the exploit input, we want to redirect the program to jump into the “system” function call.
+We need to locate the entrypoint of the “system” function call and prepare the stack properly to supply the parameter “ps” to the system function call.
+
+Steps:
+
+(gdb) display &system
+    &system = (<text variable, no debug info> *) 0xf7e3c940 <system>
+
+trying to run with the original returntolibc.bin shell code fails
+
+(gdb) run < return.bin
+    Starting program: /home/duluoz/Desktop/srich009/cs260/lab260/l1/example01 < return.bin
+    Enter password:
+
+    Program received signal SIGSEGV, Segmentation fault.
+    0x61616161 in ?? ()
+
+this causes a segfault but also reveals what parts of the shellcode end up where.
+
+(gdb) info registers
+    ...
+    esp            0xffffd070	0xffffd0b0
+    ebp            0x61616161	0x61616161
+    ...
+    eip            0x61616161	0x61616161
+    ...
+
+in the original returntolibc.bin shell code, there are 8 groups of "61 61 61 61" before the part for PS.
+
+using the original shell code, it looks like some of the groups affect ebp and eip like in part 1
+
+the 6th group of bytes changes ebp
+the 7th group of bytes changes eip
+
+&Password     = 0xffffd094
+&Password[20] = 0xffffd0a8
+&Password[24] = 0xffffd0ac
+&Password[28] = 0xffffd0b0
+
+???
+
+&system  = 0xf7e3c940
+&environ = 0xf7fb3dbc
+
+
+
+
