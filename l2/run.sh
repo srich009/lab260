@@ -2,7 +2,7 @@
 
 function main()
 {
-    set -e
+    # set -e
     buildtool
     testtool
 }
@@ -28,17 +28,38 @@ function testtool()
     PS="/bin/ps"
 
     # test bin commands
-    echo "testing ls"
-    $PIN $LS
     echo
 
-    echo "testing ps"
+    echo "Testing: /bin/ls"; echo
+    $PIN $LS
+    echo
+    cat mypintool.out
+    echo
+
+    echo "Testing: /bin/ps"; echo
     $PIN $PS
+    echo
+    cat mypintool.out
     echo
 
     # test example01
-    echo "testing example01"
-    $PIN $EX1
+
+    echo "Testing: example01 with correct password (\"goodpass\")"; echo
+    $PIN $EX1 <<< "goodpass"
+    echo
+    cat mypintool.out
+    echo
+
+    echo "testing example01 with incorrect password (\"abcdefg\")"; echo
+    $PIN $EX1 <<< "abcdefg"
+    echo
+    cat mypintool.out
+    echo
+
+    echo "Testing: example01 with overflow ('a'*80)"; echo
+    $PIN $EX1 <<< "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    echo
+    cat mypintool.out
     echo
 }
 

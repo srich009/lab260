@@ -1,0 +1,36 @@
+see the itrace example
+
+The general algorithm works like below:
+for each “call” instruction, identify the return address (or the next instruction after the call instruction), and push it onto the shadow stack;
+for each “ret” instruction, identify the return target and see if it matches with the value on the top of the shadow stack.
+If so, pop up the value from the shadow stack; otherwise, report an attack.
+
+use INS_AddInstrumentFunction to instrument an instruction at a time.
+
+Then in your instrumentation function, you will enumerate each instruction to identify call and ret instructions.
+In particular, INS_IsCall and INS_IsRet can be used to determine if the specified instruction is a call or ret.
+
+
+for a call then: IPOINT_TAKEN_BRANCH &&  IARG_RETURN_IP
+for return then: IPOINT_BEFORE && IARG_INST_PTR
+
+if(IS_CALL)
+    insert before the call grab the return address
+    make callback to function which push value to stack
+if(IS_RET)
+    insert call before grab the IP location it is supposed to goto
+    compare to the top of stack, if is good then pop stack and let continue
+    else throw error and exit
+
+The return addresses to compare:
+
+name: IARG_RETURN_IP
+Type: ADDRINT
+Return address for function call, valid only at the function entry point.
+
+name: IARG_BRANCH_TARGET_ADDR
+Type: ADDRINT
+Target address of this branch instruction, only valid if INS_IsBranchOrCall is true.
+
+ADDRINT = unsigned long int
+

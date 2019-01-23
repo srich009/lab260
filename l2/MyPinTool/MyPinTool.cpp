@@ -1,47 +1,71 @@
 #include "pin.H"
-#include <iostream>
+#include <stdio.h>
+#include <cstdlib>
+#include <stack>
 
-// The running count of instructions is kept here
-// make it static to help the compiler optimize docount
-static UINT64 icount = 0;
+// GLOBALS
+FILE * trace;
+std::stack<VOID*> shadow_stack;
 
-// This function is called before every instruction is executed
-VOID docount() { icount++; }
+// This function is called before every call instruction is executed and prints the IP
+VOID shadow_call(VOID *ip)
+{
+    //fprintf(trace, "CALL: %p\n", ip);
+    shadow_stack.push(ip);
+}
+
+// This function is called before every ret instruction is executed and prints the IP
+VOID shadow_ret(VOID *ip)
+{
+    //fprintf(trace, "RET: %p\n", ip);
+    if( ip == shadow_stack.top() )
+    {
+        shadow_stack.pop();
+    }
+    else
+    {
+        fprintf(trace, "Error: the return addresses differ, an overflow has been detected.\n");
+        fprintf(trace, "Incorrect Addr: %p\tExpected Addr: %p\n", ip, shadow_stack.top() );
+        fprintf(trace, "Terminating Program.\n");
+        fclose(trace);
+        exit(-1);
+    }
+}
 
 // Pin calls this function every time a new instruction is encountered
 VOID Instruction(INS ins, VOID *v)
 {
-    // Insert a call to docount before every instruction, no arguments are passed
-    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)docount, IARG_END);
+    if( INS_IsCall(ins) )// Insert a call to shadow_call before every call instruction, and pass it the return IP
+    {
+        INS_InsertCall(ins, IPOINT_TAKEN_BRANCH, (AFUNPTR)shadow_call, IARG_RETURN_IP, IARG_END);
+    }
+    else if( INS_IsRet(ins) ) // Insert a call to shadow_ret before every ret instruction, and pass it the IP
+    {
+        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)shadow_ret, IARG_BRANCH_TARGET_ADDR, IARG_END);
+    }
 }
 
 // This function is called when the application exits
 VOID Fini(INT32 code, VOID *v)
 {
-    // Write to a file since cout and cerr maybe closed by the application
-    std::cout << "Count " << icount << std::endl;
+    fprintf(trace, "Program ran successfully, no overflows detected\n");
+    fclose(trace);
 }
 
-/*!
- *  Print out help message.
- */
-INT32 Usage()
-{
-    cerr << "This tool is being used wrong" << endl;
-    return -1;
-}
-
-
-/* ===================================================================== */
-/* Main                                                                  */
-/* ===================================================================== */
-/*   argc, argv are the entire command line: pin -t <toolname> -- ...    */
 /* ===================================================================== */
 
 int main(int argc, char * argv[])
 {
+    trace = fopen("mypintool.out", "w");
+
     // Initialize pin
-    if (PIN_Init(argc, argv)) return Usage();
+    if (PIN_Init(argc, argv))
+    {
+        // Help message
+        PIN_ERROR("This Pintool prints the IPs\n"
+                  + KNOB_BASE::StringKnobSummary() + "\n");
+        return -1;
+    }
 
     // Register Instruction to be called to instrument instructions
     INS_AddInstrumentFunction(Instruction, 0);
@@ -54,23 +78,3 @@ int main(int argc, char * argv[])
 
     return 0;
 }
-
-/*
-
-int main(int argc, char *argv[])
-{
-    PIN_InitSymbols();
-
-    if( PIN_Init(argc,argv) )
-    {
-        return Usage();
-    }
-
-    TRACE_AddInstrumentFunction(Trace, 0);
-    PIN_AddFiniFunction(Fini, 0);
-    PIN_StartProgram();
-
-    return 0;
-}
-
-*/
