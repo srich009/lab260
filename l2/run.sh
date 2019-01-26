@@ -2,7 +2,6 @@
 
 function main()
 {
-    # set -e
     buildtool
     testtool
 }
