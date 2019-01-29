@@ -1,0 +1,7 @@
+flag re:
+
+"FLAG{cs.ucr_1s_A_Tricky_pr0blem}"
+
+flag afl_strcmp:
+
+"cs.ucr"
